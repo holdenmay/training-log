@@ -1,25 +1,33 @@
-TRAINING LOG v0.3
+TRAINING LOG v0.4 - GARMIN CONNECT
 
-INSTALL / UPDATE
-1. Unzip this package.
-2. Upload index.html, manifest.webmanifest and sw.js to the root of your existing GitHub Pages repository.
-3. Commit the changes and wait for GitHub Pages to deploy.
-4. Re-open the same site on your iPhone. If the old version remains, close the PWA and reload the site in Safari.
+UPDATE YOUR EXISTING APP
+1. Export a backup in Training Log > Settings before updating.
+2. Download and unzip this package.
+3. Upload index.html, manifest.webmanifest and sw.js to the root of your existing GitHub Pages repository, replacing the old files.
+4. Commit the changes and wait for GitHub Pages to deploy.
+5. Close the installed app, open the site in Safari, reload it, then reopen the Home Screen app.
 
-IMPORTANT DATA NOTE
-This update keeps the existing localStorage key (training-log-v1) and migrates your current data in place. Export a JSON backup from Settings before updating anyway. Your workouts are stored locally in the browser on this device and are not synced to a server.
+CONNECT GARMIN
+1. Open Training Log > Settings.
+2. Paste your Cloudflare Worker URL, e.g. https://training-log-garmin.YOUR-SUBDOMAIN.workers.dev
+3. Enter the APP_ACCESS_PASSWORD you created in Cloudflare.
+4. Tap Sync Garmin activities.
+5. Open a Garmin run in History and tap Load GPS & detailed data.
 
-WHAT'S NEW
-- Editable workout templates with exercise order, target sets and rep ranges.
-- Workout elapsed timer; saved gym duration.
-- Run and hockey duration entry plus an in-form stopwatch.
-- Weekly active time totals across gym, running and hockey.
-- Clickable activity history with gym workout breakdowns and run/hockey details.
-- Per-set previous-session values and all-time heaviest logged set remain visible while training.
-- Import a Garmin GPX export into a run to display its GPS track.
+WHAT IT DOES
+- Retrieves up to 50 recent Garmin activity summaries through your existing Cloudflare Worker.
+- Imports activities into local Training Log history and updates existing Garmin records without duplicating them.
+- Downloads the original Garmin activity ZIP on demand.
+- Unzips the FIT file in the browser and parses GPS trackpoints, heart-rate samples, cadence, altitude and lap splits.
+- Displays route trace, pace, heart rate, calories, cadence, elevation and available splits on activity detail pages.
 
-GARMIN LIMITATION
-Automatic Garmin Connect syncing is not implemented in this static GitHub Pages build. Secure automatic syncing needs an authenticated backend and must not expose Garmin credentials in browser code. GPX route import is the interim option. The route display is a trace, not a street-map basemap. Garmin FIT metrics such as heart rate, cadence, elevation and pace splits are not parsed in this version.
+PRIVACY AND LIMITATIONS
+- Your Garmin Personal API key stays in Cloudflare.
+- The Cloudflare app password is entered in Training Log and held in memory for the current page session only. It is not saved in the app's localStorage or backup.
+- Activity data and imported FIT-derived details are stored locally on this iPhone in the existing training-log-v1 storage.
+- Sync requires an internet connection and the Cloudflare Worker already deployed in your previous setup.
+- The route is shown as a GPS trace, not a street-map basemap.
+- The app does not upload your local workouts to Garmin.
 
-BACKUP
-Use Settings > Export backup regularly. Keep the JSON file somewhere safe.
+DATA SAFETY
+This release keeps the existing localStorage key training-log-v1. Export a backup before updating. Do not clear Safari website data.

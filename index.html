@@ -28,6 +28,13 @@ button,.button{border:0;border-radius:11px;padding:12px 14px;background:var(--ac
 .inline-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .template-ex{padding:12px 0;border-bottom:1px solid var(--line)}
 .taprow{cursor:pointer}
+
+.garmin-chart{width:100%;height:100px;background:#15191d;border:1px solid var(--line);border-radius:10px;display:block}
+.garmin-chart polyline{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.garmin-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0}
+.garmin-stat{background:var(--panel2);border-radius:10px;padding:11px}
+.garmin-stat strong{display:block;font-size:20px;margin-top:4px}
+.garmin-section{font-weight:700;margin:16px 0 7px}
 </style>
 </head>
 <body>
@@ -94,11 +101,16 @@ button,.button{border:0;border-radius:11px;padding:12px 14px;background:var(--ac
   <label class="button secondary full" style="display:block;text-align:center;margin-top:10px">Import backup<input type="file" accept="application/json" id="importFile" hidden onchange="importData(event)"></label>
  </div>
  <div class="card">
-  <div style="font-weight:700">Garmin activities</div>
-  <p class="notice">This GitHub Pages version cannot securely sign in to Garmin Connect or sync automatically. For now, export a run as GPX from Garmin Connect and attach it to the matching run in its activity detail page. The route is stored locally on this iPhone.</p>
-  <span class="pill">Manual GPX import available · Automatic sync not connected</span>
+  <div class="row"><div style="font-weight:700">Garmin Connect</div><span class="pill" id="garminStatus">Not synced</span></div>
+  <p class="notice">Connect to your Cloudflare Garmin Worker. The app password is used for this browser session only and is not saved in your workout backup.</p>
+  <label>Cloudflare Worker URL</label>
+  <input id="garminWorkerUrl" type="url" placeholder="https://training-log-garmin.example.workers.dev">
+  <label>App access password</label>
+  <input id="garminAppPassword" type="password" placeholder="Your Cloudflare app password" autocomplete="off">
+  <button class="full" style="margin-top:12px" onclick="syncGarmin()">Sync Garmin activities</button>
+  <p class="notice" id="garminSyncNote">Sync imports activity summaries. Open a Garmin run in History and choose Load GPS & detailed data to import its FIT file.</p>
  </div>
- <div class="card"><div style="font-weight:700">Privacy</div><p class="notice">This first version stores your training log locally in this browser on this iPhone. It does not send your workout data to a server.</p></div>
+ <div class="card"><div style="font-weight:700">Privacy</div><p class="notice">Your manual training logs and imported Garmin activity details are stored locally on this iPhone. Garmin data is retrieved through your Cloudflare Worker. Your Garmin API key stays in Cloudflare; your app password is not saved in Training Log or its backups.</p></div>
  <button class="danger full" onclick="if(confirm('Delete all local training data? Export a backup first.')){localStorage.removeItem(KEY);location.reload()}">Delete all data</button>
 </section>
 </main>
@@ -413,6 +425,430 @@ function importGPX(id,event){
  };reader.readAsText(file);
 }
 function deleteActivity(id){if(confirm('Delete this activity?')){data.activities=data.activities.filter(a=>a.id!==id);save();closeModal();render();}}
+
+
+// TRAINING LOG v0.4 - Garmin sync. Keeps the existing training-log-v1 storage key.
+data.settings = data.settings || {};
+let garminSessionPassword = "";
+
+function garminBaseUrl(){
+  const input = document.getElementById("garminWorkerUrl");
+  const raw = (input?.value || data.settings.garminWorkerUrl || "").trim();
+  return raw.replace(/\/+$/, "");
+}
+function initGarminSettings(){
+  const urlInput = document.getElementById("garminWorkerUrl");
+  if(urlInput && data.settings.garminWorkerUrl) urlInput.value = data.settings.garminWorkerUrl;
+}
+function garminType(a){
+  const key = String(a.activityType?.typeKey || "").toLowerCase();
+  const name = String(a.activityName || "").toLowerCase();
+  if(key.includes("run") || key.includes("treadmill")) return "Run";
+  if(key.includes("strength")) return "Gym";
+  if(key.includes("cycling") || key.includes("bike")) return "Cycling";
+  if(key.includes("swim")) return "Swimming";
+  if(name.includes("hockey")) return "Hockey";
+  if(key === "other" && name.includes("hockey")) return "Hockey";
+  return a.activityName || "Garmin activity";
+}
+function normalizeGarminActivity(a){
+  const dateText = String(a.startTimeLocal || a.startTimeGMT || "").slice(0,10);
+  const seconds = Number(a.duration || a.elapsedDuration || 0);
+  const distanceKm = Number(a.distance || 0) / 1000;
+  const avgSpeed = Number(a.averageSpeed || 0);
+  return {
+    id: "garmin-" + String(a.activityId),
+    garminId: String(a.activityId),
+    source: "garmin",
+    type: garminType(a),
+    name: a.activityName || garminType(a),
+    date: /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? dateText : dateISO(),
+    startTimeLocal: a.startTimeLocal || "",
+    duration: Math.round(seconds / 60),
+    durationSeconds: seconds,
+    distance: distanceKm,
+    averagePace: avgSpeed > 0 ? 16.6666667 / avgSpeed : null,
+    averageHR: Number(a.averageHR || 0) || null,
+    maxHR: Number(a.maxHR || 0) || null,
+    calories: Number(a.calories || 0) || null,
+    averageCadence: Number(a.averageRunningCadenceInStepsPerMinute || a.averageBikingCadenceInRevPerMinute || 0) || null,
+    maxCadence: Number(a.maxRunningCadenceInStepsPerMinute || a.maxBikingCadenceInRevPerMinute || 0) || null,
+    elevationGain: Number(a.elevationGain || a.totalElevationGain || 0) || null,
+    trainingEffect: Number(a.aerobicTrainingEffect || 0) || null,
+    anaerobicTrainingEffect: Number(a.anaerobicTrainingEffect || 0) || null,
+    garminTypeKey: a.activityType?.typeKey || "",
+    route: null,
+    samples: null,
+    splits: [],
+    fitLoaded: false
+  };
+}
+async function syncGarmin(){
+  const base = garminBaseUrl();
+  const password = document.getElementById("garminAppPassword")?.value || "";
+  const note = document.getElementById("garminSyncNote");
+  const status = document.getElementById("garminStatus");
+  if(!base || !/^https:\/\/[^/]+/i.test(base)){
+    toast("Enter your full Cloudflare Worker URL, starting with https://");
+    return;
+  }
+  if(!password){ toast("Enter your Cloudflare app password"); return; }
+  data.settings.garminWorkerUrl = base;
+  save();
+  garminSessionPassword = password;
+  if(note) note.textContent = "Connecting to Garmin and checking recent activities...";
+  if(status) status.textContent = "Syncing...";
+  try{
+    const response = await fetch(base + "/activities?limit=50", {
+      method: "GET",
+      headers: { "X-App-Password": password, "Accept": "application/json" }
+    });
+    const payload = await response.json();
+    if(!response.ok || !payload.ok || !Array.isArray(payload.activities)){
+      const msg = payload.error || ("HTTP " + response.status);
+      throw new Error(msg + (payload.status ? " (Garmin " + payload.status + ")" : ""));
+    }
+    const byId = new Map(data.activities.filter(x=>x.garminId).map(x=>[String(x.garminId),x]));
+    let added = 0, updated = 0;
+    for(const raw of payload.activities){
+      if(!raw.activityId) continue;
+      const normalized = normalizeGarminActivity(raw);
+      const existing = byId.get(normalized.garminId);
+      if(existing){
+        Object.assign(existing, normalized, {
+          route: existing.route || null,
+          samples: existing.samples || null,
+          splits: existing.splits?.length ? existing.splits : [],
+          fitLoaded: !!existing.fitLoaded
+        });
+        updated++;
+      }else{
+        data.activities.push(normalized);
+        byId.set(normalized.garminId, normalized);
+        added++;
+      }
+    }
+    save();
+    render();
+    if(status) status.textContent = "Connected";
+    if(note) note.textContent = `Sync complete. ${added} new activities added; ${updated} existing activities refreshed.`;
+    toast(`${added} new Garmin activities imported`);
+  }catch(error){
+    if(status) status.textContent = "Sync failed";
+    if(note) note.textContent = "Could not sync: " + error.message;
+    toast("Garmin sync failed");
+  }
+}
+function readFitValue(view, offset, size, base, little){
+  const type = base & 31;
+  const widths = {0:1,1:1,2:1,3:2,4:2,5:4,6:4,8:4,9:2,10:4,12:8,13:8,14:8,15:1};
+  const width = widths[type] || 1;
+  let value;
+  try{
+    if(type===0 || type===2 || type===15) value=view.getUint8(offset);
+    else if(type===1) value=view.getInt8(offset);
+    else if(type===3) value=view.getInt16(offset,little);
+    else if(type===4 || type===9) value=view.getUint16(offset,little);
+    else if(type===5) value=view.getInt32(offset,little);
+    else if(type===6 || type===10) value=view.getUint32(offset,little);
+    else if(type===8) value=view.getFloat32(offset,little);
+    else if(type===12) value=Number(view.getBigInt64(offset,little));
+    else if(type===13 || type===14) value=Number(view.getBigUint64(offset,little));
+    else value=view.getUint8(offset);
+  }catch(e){ return null; }
+  const invalid = ({0:255,1:127,2:255,3:32767,4:65535,5:2147483647,6:4294967295,9:0,10:0})[type];
+  if(invalid !== undefined && value === invalid) return null;
+  if(type===8 && !Number.isFinite(value)) return null;
+  return value;
+}
+function parseFit(buffer){
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  if(bytes.length < 14 || String.fromCharCode(...bytes.slice(8,12)) !== ".FIT"){
+    throw new Error("This ZIP did not contain a valid FIT activity file.");
+  }
+  const headerSize = bytes[0];
+  const dataSize = view.getUint32(4,true);
+  const end = Math.min(bytes.length-2, headerSize+dataSize);
+  let offset = headerSize, lastTimestamp = null;
+  const definitions = {};
+  const records = [], laps = [];
+  while(offset < end){
+    const header = bytes[offset++];
+    let local, compressed = false;
+    if(header & 0x80){
+      compressed = true;
+      local = (header >> 5) & 3;
+    }else if(header & 0x40){
+      local = header & 15;
+      const architecture = bytes[offset+1];
+      const little = architecture === 0;
+      const global = little ? view.getUint16(offset+2,true) : view.getUint16(offset+2,false);
+      const count = bytes[offset+4];
+      offset += 5;
+      const fields = [];
+      for(let i=0;i<count;i++){
+        fields.push({num:bytes[offset],size:bytes[offset+1],base:bytes[offset+2]});
+        offset += 3;
+      }
+      const dev = [];
+      if(header & 0x20){
+        const n = bytes[offset++];
+        for(let i=0;i<n;i++){
+          dev.push({num:bytes[offset],size:bytes[offset+1],index:bytes[offset+2]});
+          offset += 3;
+        }
+      }
+      definitions[local] = {global,little,fields,dev};
+      continue;
+    }else{
+      local = header & 15;
+    }
+    const definition = definitions[local];
+    if(!definition) throw new Error("FIT file has an incomplete message definition.");
+    const values = {};
+    for(const field of definition.fields){
+      values[field.num] = readFitValue(view,offset,field.size,field.base,definition.little);
+      offset += field.size;
+    }
+    for(const field of definition.dev || []) offset += field.size;
+    if(compressed && lastTimestamp !== null){
+      let timestamp = (lastTimestamp & ~31) | (header & 31);
+      if(timestamp < lastTimestamp) timestamp += 32;
+      values[253] = timestamp;
+      lastTimestamp = timestamp;
+    }else if(values[253] !== null && values[253] !== undefined){
+      lastTimestamp = values[253];
+    }
+    if(definition.global === 20){
+      const lat = values[0], lon = values[1];
+      const timestamp = values[253];
+      records.push({
+        lat: lat == null ? null : lat * 180 / 2147483648,
+        lon: lon == null ? null : lon * 180 / 2147483648,
+        time: timestamp == null ? null : timestamp + 631065600,
+        distance: values[5] == null ? null : values[5] / 100,
+        speed: values[73] == null ? null : values[73] / 1000,
+        altitude: values[78] == null ? null : values[78] / 5 - 500,
+        hr: values[3],
+        cadence: values[4]
+      });
+    }else if(definition.global === 19){
+      laps.push({
+        duration: values[8] != null ? values[8]/1000 : (values[7]||0)/1000,
+        distance: values[9] == null ? null : values[9]/100,
+        averageHR: values[15],
+        maxHR: values[16],
+        averageCadence: values[17]
+      });
+    }
+  }
+  const gps = records.filter(r=>Number.isFinite(r.lat)&&Number.isFinite(r.lon));
+  if(gps.length < 2) throw new Error("No GPS trackpoints were found in this FIT file.");
+  const routeStride = Math.max(1,Math.ceil(gps.length/600));
+  const route = gps.filter((r,i)=>i%routeStride===0 || i===gps.length-1).map(r=>[r.lat,r.lon]);
+  const samplesRaw = records.filter(r=>r.time!=null);
+  const sampleStride = Math.max(1,Math.ceil(samplesRaw.length/500));
+  const samples = samplesRaw.filter((r,i)=>i%sampleStride===0 || i===samplesRaw.length-1)
+    .map(r=>({t:r.time,d:r.distance,s:r.speed,h:r.hr,a:r.altitude,c:r.cadence}));
+  const altitudes = records.map(r=>r.altitude).filter(Number.isFinite);
+  let ascent = 0;
+  for(let i=1;i<altitudes.length;i++){
+    const delta = altitudes[i]-altitudes[i-1];
+    if(delta>0.8 && delta<8) ascent += delta;
+  }
+  const totalDistance = records.reduce((last,r)=>r.distance!=null?r.distance:last,0);
+  let splits = laps.filter(l=>l.distance && l.duration).map((l,i)=>({
+    km: i+1,
+    distance: l.distance,
+    duration: l.duration,
+    pace: l.duration/(l.distance/1000),
+    averageHR: l.averageHR,
+    maxHR: l.maxHR
+  }));
+  if(!splits.length && samplesRaw.length>1){
+    let next=1000,lastD=samplesRaw[0].distance||0,lastT=samplesRaw[0].time;
+    for(const r of samplesRaw){
+      if(r.distance!=null && r.time!=null && r.distance>=next && lastT!=null){
+        const elapsed=r.time-lastT;
+        if(elapsed>0) splits.push({km:splits.length+1,distance:1000,duration:elapsed,pace:elapsed});
+        next+=1000;lastT=r.time;
+      }
+    }
+  }
+  return {
+    route, samples, splits,
+    fitDistance: totalDistance/1000,
+    elevationGain: Math.round(ascent),
+    gpsPoints: gps.length,
+    recordCount: records.length
+  };
+}
+async function unzipFit(zipBuffer){
+  const bytes = new Uint8Array(zipBuffer);
+  const view = new DataView(zipBuffer);
+  let eocd = -1;
+  for(let i=bytes.length-22;i>=Math.max(0,bytes.length-65558);i--){
+    if(view.getUint32(i,true)===0x06054b50){eocd=i;break;}
+  }
+  if(eocd<0) throw new Error("Garmin download was not a valid ZIP file.");
+  const entries = view.getUint16(eocd+10,true);
+  let cursor = view.getUint32(eocd+16,true);
+  for(let i=0;i<entries;i++){
+    if(view.getUint32(cursor,true)!==0x02014b50) throw new Error("Could not read the Garmin ZIP directory.");
+    const method=view.getUint16(cursor+10,true);
+    const compressedSize=view.getUint32(cursor+20,true);
+    const filenameLength=view.getUint16(cursor+28,true);
+    const extraLength=view.getUint16(cursor+30,true);
+    const commentLength=view.getUint16(cursor+32,true);
+    const localOffset=view.getUint32(cursor+42,true);
+    const filename=new TextDecoder().decode(bytes.slice(cursor+46,cursor+46+filenameLength));
+    if(filename.toLowerCase().endsWith(".fit")){
+      const localNameLength=view.getUint16(localOffset+26,true);
+      const localExtraLength=view.getUint16(localOffset+28,true);
+      const dataStart=localOffset+30+localNameLength+localExtraLength;
+      const compressed=bytes.slice(dataStart,dataStart+compressedSize);
+      if(method===0) return compressed.buffer.slice(compressed.byteOffset,compressed.byteOffset+compressed.byteLength);
+      if(method===8){
+        if(typeof DecompressionStream==="undefined") throw new Error("This browser cannot unzip the FIT file. Try Safari updated to the latest iOS.");
+        const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+        return await new Response(stream).arrayBuffer();
+      }
+      throw new Error("Unsupported ZIP compression method: "+method);
+    }
+    cursor += 46+filenameLength+extraLength+commentLength;
+  }
+  throw new Error("No .FIT file was found inside the Garmin ZIP.");
+}
+function paceText(minutesPerKm){
+  if(!Number.isFinite(minutesPerKm) || minutesPerKm<=0) return "—";
+  const total=Math.round(minutesPerKm*60);
+  return Math.floor(total/60)+":"+String(total%60).padStart(2,"0");
+}
+function chartSvg(values,label){
+  const vals=values.filter(Number.isFinite);
+  if(vals.length<2) return '<p class="notice">Not enough samples for this chart.</p>';
+  const min=Math.min(...vals),max=Math.max(...vals),span=max-min||1;
+  const points=vals.map((v,i)=>`${8+i/(vals.length-1)*284},${88-(v-min)/span*76}`).join(" ");
+  return `<div class="small muted" style="margin:10px 0 5px">${esc(label)}</div><svg class="garmin-chart" viewBox="0 0 300 100" role="img" aria-label="${esc(label)}"><polyline points="${points}"/></svg>`;
+}
+async function loadGarminFit(garminId){
+  const activity=data.activities.find(a=>String(a.garminId)===String(garminId));
+  if(!activity) return;
+  const base=data.settings.garminWorkerUrl;
+  if(!base) return toast("Set your Garmin Worker URL in Settings first");
+  if(!garminSessionPassword){
+    garminSessionPassword=prompt("Enter your Cloudflare app access password")||"";
+  }
+  if(!garminSessionPassword) return;
+  toast("Downloading Garmin FIT data...");
+  try{
+    const response=await fetch(base+"/activity-file/"+encodeURIComponent(garminId),{
+      headers:{"X-App-Password":garminSessionPassword}
+    });
+    if(!response.ok){
+      let message="HTTP "+response.status;
+      try{const err=await response.json();message=err.error+" (HTTP "+(err.status||response.status)+")";}catch(e){}
+      throw new Error(message);
+    }
+    const fitBuffer=await unzipFit(await response.arrayBuffer());
+    const parsed=parseFit(fitBuffer);
+    activity.route=parsed.route;
+    activity.samples=parsed.samples;
+    activity.splits=parsed.splits;
+    activity.fitDistance=parsed.fitDistance;
+    activity.gpsPoints=parsed.gpsPoints;
+    activity.recordCount=parsed.recordCount;
+    activity.elevationGain=parsed.elevationGain || activity.elevationGain;
+    activity.fitLoaded=true;
+    save();
+    render();
+    openDetail(activity.id,activity.type);
+    toast("GPS route and FIT data imported");
+  }catch(error){
+    alert("Could not import Garmin FIT data: "+error.message);
+  }
+}
+function itemHTML(x){
+  const gymLog=x.type==="Gym" && !x.source;
+  const meta=gymLog
+    ? `${(x.exercises||[]).length} exercises · ${allSets(x).length} completed sets · ${x.duration||0} min`
+    : `${esc(x.type)} · ${x.distance?x.distance.toFixed(2)+" km · ":""}${x.duration||0} min${x.averageHR?" · "+x.averageHR+" bpm avg HR":""}`;
+  return `<div class="historyitem taprow" onclick="openDetail('${esc(x.id)}','${esc(x.type||"Activity")}')">
+    <div class="row"><b>${esc(x.name||x.type)}</b><span class="pill">${esc(x.date)}</span></div>
+    <div class="muted small" style="margin-top:5px">${meta}</div>
+    ${x.source==="garmin"?'<div class="small" style="color:var(--accent);margin-top:5px">GARMIN CONNECT</div>':''}
+    <div class="small" style="color:var(--accent);margin-top:6px">View activity →</div>
+  </div>`;
+}
+function renderHistory(){
+  const items=[...data.workouts.map(w=>({...w,type:"Gym"})),...data.activities]
+    .sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  historyList.innerHTML=items.length?items.map(x=>itemHTML(x)).join(""):'<div class="empty">Your training history will show up here.</div>';
+}
+function openDetail(id,type){
+  const workout=data.workouts.find(w=>w.id===id);
+  const x=workout && type==="Gym" ? workout : data.activities.find(a=>a.id===id);
+  if(!x) return;
+  modal.classList.remove("hidden");
+  if(type==="Gym" && !x.source){
+    const sets=(x.exercises||[]).flatMap(e=>(e.sets||[]).filter(s=>s.done));
+    const volume=sets.reduce((s,z)=>s+(+z.weight||0)*(+z.reps||0),0);
+    modalBody.innerHTML=`<div class="row"><b>${esc(x.name||"Gym session")}</b><button class="secondary" onclick="closeModal()">Close</button></div>
+      <div class="grid"><div class="stat"><div class="small muted">DURATION</div><div class="big">${x.duration||0}m</div></div><div class="stat"><div class="small muted">WORKING SETS</div><div class="big">${sets.length}</div></div><div class="stat"><div class="small muted">VOLUME</div><div class="big">${fmt(volume)} kg</div></div><div class="stat"><div class="small muted">EXERCISES</div><div class="big">${(x.exercises||[]).length}</div></div></div>
+      ${(x.exercises||[]).map(e=>`<div class="detail-block"><b>${esc(e.name)}</b><div class="small muted">${esc(e.muscle||"")}</div><div style="margin-top:7px">${(e.sets||[]).filter(s=>s.done).map((s,i)=>`<div class="row small"><span>Set ${i+1}</span><b>${esc(s.weight||0)} kg × ${esc(s.reps||0)}</b></div>`).join("")||'<span class="muted small">No completed sets</span>'}</div></div>`).join("")}
+      <button class="danger full" onclick="deleteWorkout('${x.id}');closeModal()">Delete workout</button>`;
+    return;
+  }
+  const pace=x.averagePace || (x.distance&&x.duration ? x.duration/x.distance : null);
+  const isRun=x.type==="Run";
+  const stats=[
+    ["DURATION",`${x.duration||0} min`],
+    ["DISTANCE",x.distance?x.distance.toFixed(2)+" km":"—"],
+    ["AVG PACE",pace?paceText(pace)+"/km":"—"],
+    ["AVG HEART RATE",x.averageHR?x.averageHR+" bpm":"—"],
+    ["MAX HEART RATE",x.maxHR?x.maxHR+" bpm":"—"],
+    ["CALORIES",x.calories?Math.round(x.calories)+" kcal":"—"],
+    ["CADENCE",x.averageCadence?Math.round(x.averageCadence)+" spm":"—"],
+    ["ELEVATION GAIN",x.elevationGain?Math.round(x.elevationGain)+" m":"—"]
+  ];
+  const statsHtml=stats.map(s=>`<div class="garmin-stat"><span class="small muted">${s[0]}</span><strong>${s[1]}</strong></div>`).join("");
+  const splitsHtml=(x.splits||[]).length?`<div class="garmin-section">Splits</div><div class="detail-block">
+    ${(x.splits||[]).map((s,i)=>`<div class="row small" style="padding:7px 0;border-bottom:1px solid var(--line)"><span>${s.distance<1000?"Final "+(s.distance/1000).toFixed(2)+" km":"Km "+(i+1)}</span><b>${paceText(s.pace||s.duration/(s.distance/1000))}/km</b></div>`).join("")}
+  </div>`:"";
+  const routeHtml=x.route?routeSvg(x.route):"";
+  const fitButton=x.source==="garmin"&&!x.fitLoaded
+    ? `<button class="full" onclick="loadGarminFit('${esc(x.garminId)}')">Load GPS & detailed data</button>`
+    : "";
+  const samples=x.samples||[];
+  const hrChart=chartSvg(samples.map(s=>s.h).filter(v=>v!=null),"Heart rate over time");
+  const paceValues=samples.map(s=>s.s>0?1000/s.s/60:null).filter(Number.isFinite);
+  const paceChart=chartSvg(paceValues,"Pace trend (minutes per km)");
+  modalBody.innerHTML=`<div class="row"><div><b>${esc(x.name||x.type)}</b><div class="small muted">${esc(x.date)}${x.source==="garmin"?" · GARMIN CONNECT":""}</div></div><button class="secondary" onclick="closeModal()">Close</button></div>
+    <div class="garmin-stats">${statsHtml}</div>
+    ${x.source==="garmin"&&!x.fitLoaded?`<p class="notice">Activity summary synced from Garmin. Load the original FIT file for the GPS route, track samples and lap splits.</p>`:""}
+    ${fitButton}
+    ${routeHtml}
+    ${splitsHtml}
+    ${samples.length?`<div class="garmin-section">Activity charts</div>${hrChart}${paceChart}`:""}
+    ${x.notes?`<p class="muted small">${esc(x.notes)}</p>`:""}
+    ${x.source==="garmin"?'<p class="notice">GPS route is displayed as a track trace. Your original activity remains in Garmin Connect.</p>':""}
+    <button class="danger full" style="margin-top:12px" onclick="deleteActivity('${x.id}')">Delete activity</button>`;
+}
+function deleteActivity(id){
+  if(confirm("Delete this activity from Training Log? It will remain in Garmin Connect.")){
+    data.activities=data.activities.filter(a=>a.id!==id);
+    save();closeModal();render();
+  }
+}
+function routeSvg(points){
+  if(!points||points.length<2) return '<div class="detail-block">Route data is incomplete.</div>';
+  const lats=points.map(p=>p[0]),lons=points.map(p=>p[1]);
+  const minA=Math.min(...lats),maxA=Math.max(...lats),minB=Math.min(...lons),maxB=Math.max(...lons);
+  const coords=points.map(p=>`${12+(p[1]-minB)/(maxB-minB||1)*276},${218-(p[0]-minA)/(maxA-minA||1)*196}`).join(" ");
+  return `<div class="detail-block"><b>GPS route</b><svg class="route" viewBox="0 0 300 230" role="img" aria-label="Imported GPS route"><polyline points="${coords}"/></svg><div class="notice">GPS track from your Garmin FIT file. This is a route trace, not a street-map basemap.</div></div>`;
+}
+initGarminSettings();
 
 render();
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
