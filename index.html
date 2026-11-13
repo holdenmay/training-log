@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101114">
+<title>Training Log</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{color-scheme:dark;--bg:#101114;--panel:#191b20;--panel2:#22252c;--line:#30343d;--text:#f3f4f6;--muted:#9ba1ad;--accent:#b8f36b;--red:#ff7777}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding-bottom:calc(82px + env(safe-area-inset-bottom))}
+header{padding:22px 18px 14px;position:sticky;top:0;background:rgba(16,17,20,.96);backdrop-filter:blur(12px);z-index:3;border-bottom:1px solid var(--line)}
+.brand{font-size:12px;letter-spacing:.18em;color:var(--accent);font-weight:800}.topline{display:flex;justify-content:space-between;align-items:center;margin-top:5px}h1{font-size:27px;margin:0;font-weight:750;letter-spacing:-.04em}.sub{color:var(--muted);font-size:13px;margin-top:5px}
+main{max-width:720px;margin:auto;padding:16px 15px 30px}.tabs{position:fixed;bottom:0;left:0;right:0;z-index:5;background:rgba(25,27,32,.97);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:9px 5px calc(9px + env(safe-area-inset-bottom));backdrop-filter:blur(12px)}
+.tab{background:none;border:0;color:var(--muted);font-size:11px;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:60px}.tab b{font-size:19px;font-weight:500}.tab.active{color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px;margin:12px 0}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.muted{color:var(--muted)}.small{font-size:12px}.big{font-size:27px;font-weight:750;letter-spacing:-.04em}.section{font-size:17px;font-weight:700;margin:22px 2px 8px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.stat{background:var(--panel);border:1px solid var(--line);padding:14px;border-radius:14px}.stat .big{font-size:23px;margin-top:6px}
+button,.button{border:0;border-radius:11px;padding:12px 14px;background:var(--accent);color:#11150c;font-weight:750;font-size:14px;cursor:pointer}.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}.danger{background:#382225;color:#ffb4b4}.full{width:100%}input,select{background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:12px;width:100%;font:inherit;min-width:0}label{font-size:12px;color:var(--muted);display:block;margin:9px 0 5px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.exercise{padding:13px 0;border-bottom:1px solid var(--line)}.exercise:last-child{border:0}.setrow{display:grid;grid-template-columns:32px 1fr 1fr 38px;gap:7px;align-items:center;margin-top:8px}.setrow input{padding:9px;text-align:center}.setnum{color:var(--muted);text-align:center;font-size:12px}.check{height:36px;width:38px;padding:0;background:var(--panel2);color:var(--muted);border:1px solid var(--line)}.check.done{background:var(--accent);color:#111}
+.pill{font-size:11px;border:1px solid var(--line);border-radius:30px;padding:5px 8px;color:var(--muted)}.empty{text-align:center;padding:30px 12px;color:var(--muted)}.historyitem{padding:13px 0;border-bottom:1px solid var(--line)}.historyitem:last-child{border:0}
+.bar{height:8px;background:var(--panel2);border-radius:20px;overflow:hidden;margin-top:7px}.bar>i{display:block;height:100%;background:var(--accent);border-radius:20px}
+.hidden{display:none!important}.notice{font-size:12px;color:var(--muted);line-height:1.5}.toast{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:var(--accent);color:#111;padding:10px 16px;border-radius:20px;z-index:10;font-weight:700}
+@media(min-width:600px){main{padding-top:22px}.grid{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<header><div class="brand">TRAINING LOG</div><div class="topline"><h1 id="pageTitle">Today</h1><span class="pill" id="todayDate"></span></div><div class="sub" id="pageSub">Log your work. Track your progress.</div></header>
+<main>
+<section id="homeView">
+ <div class="grid">
+  <div class="stat"><div class="muted small">GYM SESSIONS</div><div class="big" id="weekSessions">0</div><div class="small muted">this week</div></div>
+  <div class="stat"><div class="muted small">TOTAL SETS</div><div class="big" id="weekSets">0</div><div class="small muted">this week</div></div>
+  <div class="stat"><div class="muted small">RUNNING</div><div class="big" id="weekKm">0 km</div><div class="small muted">this week</div></div>
+  <div class="stat"><div class="muted small">ACTIVITIES</div><div class="big" id="weekActivities">0</div><div class="small muted">this week</div></div>
+ </div>
+ <div class="card">
+  <div class="row"><div><div class="muted small">YOUR NEXT SESSION</div><div style="font-size:19px;font-weight:750;margin-top:4px">Start a workout</div></div><span style="font-size:25px">↗</span></div>
+  <p class="muted small">Record sets and reps, check your previous numbers and build progressive overload over time.</p>
+  <button class="full" onclick="startWorkout()">Start empty workout</button>
+  <button class="secondary full" style="margin-top:8px" onclick="showTemplates()">Start from a saved template</button>
+ </div>
+ <div class="section">Your workout templates</div>
+ <div class="card" id="templateHome"></div>
+ <div class="row"><div class="section">Recent training</div><button class="secondary small" onclick="nav('history')">View all</button></div><div class="card" id="recentHome"></div>
+ <div class="section">Quick add activity</div>
+ <div class="grid"><button class="secondary" onclick="quickActivity('Run')">＋ Run</button><button class="secondary" onclick="quickActivity('Hockey')">＋ Hockey</button></div>
+</section>
+
+<section id="workoutView" class="hidden">
+ <div class="card">
+  <div class="row"><div><div class="muted small">ACTIVE SESSION</div><div id="workoutDate" style="font-weight:700;margin-top:3px"></div></div><div class="row"><button class="secondary" onclick="saveCurrentAsTemplate()">Save template</button><button class="secondary" onclick="finishWorkout()">Finish</button></div></div>
+  <label>Workout name</label><input id="workoutName" value="Gym session" />
+ </div>
+ <div class="row"><div class="section" style="margin:10px 0">Exercises</div><button class="secondary" onclick="showAddExercise()">＋ Add exercise</button></div>
+ <div id="exerciseList" class="card"></div>
+ <button class="full" onclick="finishWorkout()">Finish workout</button>
+ <p class="notice">Completed sets count toward training volume. You can edit or delete a workout later from History.</p>
+</section>
+
+<section id="historyView" class="hidden">
+ <div class="row"><div class="section" style="margin-top:4px">Training history</div><button class="secondary" onclick="quickActivity('Run')">＋ Activity</button></div>
+ <div class="card" id="historyList"></div>
+</section>
+
+<section id="progressView" class="hidden">
+ <div class="section" style="margin-top:4px">Hypertrophy overview</div>
+ <div class="grid">
+  <div class="stat"><div class="muted small">TOTAL VOLUME</div><div class="big" id="totalVolume">0</div><div class="small muted">kg lifted this week</div></div>
+  <div class="stat"><div class="muted small">WORKING SETS</div><div class="big" id="totalWorkSets">0</div><div class="small muted">this week</div></div>
+ </div>
+ <div class="section">Sets by muscle group</div><div class="card" id="muscleBreakdown"></div>
+ <div class="section">Exercise progression</div><div class="card" id="exerciseProgress"></div>
+ <p class="notice">Volume = weight × reps for completed sets. Muscle-group set counts are assigned from each exercise's primary muscle group. These are tracking estimates, not a measure of stimulus or recovery.</p>
+</section>
+
+<section id="settingsView" class="hidden">
+ <div class="section" style="margin-top:4px">Settings & data</div>
+ <div class="card">
+  <div style="font-weight:700">Exercise library</div><p class="notice">Add exercises and assign a primary muscle group so weekly set counts are useful.</p>
+  <button class="secondary full" onclick="manageExercises()">Manage exercises</button>
+ </div>
+ <div class="card">
+  <div style="font-weight:700">Backup your data</div><p class="notice">Your workouts are saved on this device. Export a backup regularly, especially before changing phones or clearing browser data.</p>
+  <button class="full" onclick="exportData()">Export backup</button>
+  <label class="button secondary full" style="display:block;text-align:center;margin-top:10px">Import backup<input type="file" accept="application/json" id="importFile" hidden onchange="importData(event)"></label>
+ </div>
+ <div class="card">
+  <div style="font-weight:700">Garmin connection</div><p class="notice">Automatic Garmin syncing is planned for the next phase. The secure connection needs a small backend and your Garmin Personal API key. Do not paste your Garmin password or API key into this prototype.</p>
+  <span class="pill">Not connected</span>
+ </div>
+ <div class="card"><div style="font-weight:700">Privacy</div><p class="notice">This first version stores your training log locally in this browser on this iPhone. It does not send your workout data to a server.</p></div>
+ <button class="danger full" onclick="if(confirm('Delete all local training data? Export a backup first.')){localStorage.removeItem(KEY);location.reload()}">Delete all data</button>
+</section>
+</main>
+<nav class="tabs">
+ <button class="tab active" data-tab="home"><b>⌂</b>Home</button>
+ <button class="tab" data-tab="workout"><b>＋</b>Workout</button>
+ <button class="tab" data-tab="history"><b>▤</b>History</button>
+ <button class="tab" data-tab="progress"><b>↗</b>Progress</button>
+ <button class="tab" data-tab="settings"><b>⚙</b>Settings</button>
+</nav>
+<div id="modal" class="hidden" style="position:fixed;inset:0;background:#000b;z-index:8;padding:20px;display:flex;align-items:center;justify-content:center"><div class="card" style="width:100%;max-width:460px;max-height:85vh;overflow:auto" id="modalBody"></div></div>
+<script>
+const KEY='training-log-v1';
+const starter=[
+ ['Bench Press','Chest'],['Incline Dumbbell Press','Chest'],['Cable Fly','Chest'],
+ ['Chest-Supported Row','Back'],['Lat Pulldown','Back'],['Seated Cable Row','Back'],
+ ['Shoulder Press','Shoulders'],['Cable Lateral Raise','Shoulders'],['Rear Delt Fly','Shoulders'],
+ ['Triceps Pushdown','Triceps'],['Overhead Triceps Extension','Triceps'],
+ ['Dumbbell Curl','Biceps'],['Hammer Curl','Biceps'],
+ ['Leg Press','Quads'],['Romanian Deadlift','Hamstrings'],['Leg Curl','Hamstrings'],['Leg Extension','Quads'],['Calf Raise','Calves'],['Hip Thrust','Glutes']
+].map((x,i)=>({id:'e'+i,name:x[0],muscle:x[1]}));
+let data=load(), active=null, currentTab='home';
+function load(){try{let d=JSON.parse(localStorage.getItem(KEY))||{exercises:starter,workouts:[],activities:[],templates:[]};d.templates=d.templates||[];return d}catch(e){return{exercises:starter,workouts:[],activities:[],templates:[]}}}
+function save(){localStorage.setItem(KEY,JSON.stringify(data))}
+function dateISO(){return new Date().toISOString().slice(0,10)}
+function weekStart(){let d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10)}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function fmt(n){return Math.round(n||0).toLocaleString('en-CA')}
+function toast(t){let x=document.createElement('div');x.className='toast';x.textContent=t;document.body.append(x);setTimeout(()=>x.remove(),1600)}
+function nav(tab){currentTab=tab;document.querySelectorAll('main>section').forEach(x=>x.classList.add('hidden'));document.getElementById(tab+'View').classList.remove('hidden');document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));let names={home:['Today','Log your work. Track your progress.'],workout:['Workout','Record each working set.'],history:['History','Your training, all in one place.'],progress:['Progress','Volume, muscle groups and strength trends.'],settings:['Settings','Manage your data and preferences.']};document.getElementById('pageTitle').textContent=names[tab][0];document.getElementById('pageSub').textContent=names[tab][1];render()}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>nav(b.dataset.tab)));
+document.getElementById('todayDate').textContent=new Date().toLocaleDateString('en-CA',{month:'short',day:'numeric'});
+function render(){renderHome();renderHistory();renderProgress();if(active)renderWorkout()}
+function weekWorkouts(){return data.workouts.filter(w=>w.date>=weekStart())}
+function allSets(w){return (w.exercises||[]).flatMap(e=>(e.sets||[]).filter(s=>s.done))}
+function renderHome(){
+ let ws=weekWorkouts(),sets=ws.flatMap(allSets),acts=data.activities.filter(a=>a.date>=weekStart()),km=acts.filter(a=>a.type==='Run').reduce((s,a)=>s+(+a.distance||0),0);
+ weekSessions.textContent=ws.length;weekSets.textContent=sets.length;weekKm.textContent=km.toFixed(1)+' km';weekActivities.textContent=acts.length;
+ let items=[...data.workouts.map(w=>({...w,type:'Gym'})),...data.activities].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,4);
+ recentHome.innerHTML=items.length?items.map(itemHTML).join(''):'<div class="empty">No training logged yet. Start with your next gym session.</div>';
+ templateHome.innerHTML=data.templates.length?data.templates.map(t=>`<div class="historyitem"><div class="row"><div><b>${esc(t.name)}</b><div class="small muted">${t.exercises.length} exercises</div></div><button onclick="startTemplate('${t.id}')">Start</button></div></div>`).join(''):'<div class="empty">Build a workout once and save it as a template for next time.</div>';
+
+}
+function itemHTML(x){return `<div class="historyitem"><div class="row"><b>${esc(x.name||x.type)}</b><span class="pill">${esc(x.date)}</span></div><div class="muted small" style="margin-top:5px">${x.type==='Gym'?`${(x.exercises||[]).length} exercises · ${allSets(x).length} completed sets`:`${esc(x.type)} · ${x.distance?x.distance+' km · ':''}${x.duration?x.duration+' min':''}`}</div></div>`}
+function startWorkout(){active={id:crypto.randomUUID(),date:dateISO(),name:'Gym session',exercises:[]};nav('workout')}
+function renderWorkout(){
+ workoutDate.textContent=new Date(active.date+'T12:00:00').toLocaleDateString('en-CA',{weekday:'long',month:'short',day:'numeric'});
+ workoutName.value=active.name;
+ exerciseList.innerHTML=active.exercises.length?active.exercises.map((e,i)=>`<div class="exercise"><div class="row"><div><b>${esc(e.name)}</b><div class="small muted">${esc(e.muscle)}</div></div><button class="secondary" onclick="removeExercise(${i})">×</button></div><div class="setrow"><span class="setnum">SET</span><span class="small muted" style="text-align:center">WEIGHT (KG)</span><span class="small muted" style="text-align:center">REPS</span><span></span></div>${e.sets.map((s,j)=>`<div class="setrow"><span class="setnum">${j+1}</span><input type="number" inputmode="decimal" placeholder="kg" value="${s.weight??''}" onchange="editSet(${i},${j},'weight',this.value)"><input type="number" inputmode="numeric" placeholder="reps" value="${s.reps??''}" onchange="editSet(${i},${j},'reps',this.value)"><button class="check ${s.done?'done':''}" onclick="toggleSet(${i},${j})">${s.done?'✓':'○'}</button></div><div class="small muted" style="padding:3px 0 0 39px">Last set ${j+1}: ${previousSet(e.name,j)} <span style="padding-left:8px">Best: ${bestSet(e.name)}</span></div>`).join('')}<button class="secondary small" style="margin-top:9px;padding:8px 10px" onclick="addSet(${i})">＋ Add set</button><div class="small muted" style="margin-top:7px">Last time: ${lastPerformance(e.name)}</div></div>`).join(''):'<div class="empty">Add your first exercise to begin.</div>';
+}
+
+function previousExercise(name){
+ let old=data.workouts.filter(w=>w.id!==active?.id).sort((a,b)=>b.date.localeCompare(a.date));
+ for(let w of old){let e=(w.exercises||[]).find(x=>x.name===name);if(e)return e;}
+ return null;
+}
+function previousSet(name,index){
+ let e=previousExercise(name);let s=e?.sets?.filter(x=>x.done)[index];
+ return s?`${s.weight||0} kg × ${s.reps||0}`:'—';
+}
+function bestSet(name){
+ let all=data.workouts.flatMap(w=>(w.exercises||[]).filter(e=>e.name===name).flatMap(e=>(e.sets||[]).filter(s=>s.done)));
+ if(!all.length)return '—';
+ let best=all.reduce((a,b)=>(+b.weight||0)>(+a.weight||0)?b:a);
+ return `${best.weight||0} kg × ${best.reps||0}`;
+}
+function showTemplates(){
+ modal.classList.remove('hidden');
+ modalBody.innerHTML=`<div class="row"><b>Start a workout</b><button class="secondary" onclick="closeModal()">Close</button></div>
+ ${data.templates.length?data.templates.map(t=>`<div class="historyitem"><div class="row"><div><b>${esc(t.name)}</b><div class="small muted">${t.exercises.length} exercises</div></div><button onclick="startTemplate('${t.id}')">Start</button></div></div>`).join(''):'<div class="empty">No templates saved yet. Start an empty workout, add exercises, then tap Save template.</div>'}
+ <button class="secondary full" onclick="closeModal()">Cancel</button>`;
+}
+function startTemplate(id){
+ let t=data.templates.find(x=>x.id===id);if(!t)return;
+ active={id:crypto.randomUUID(),date:dateISO(),name:t.name,exercises:t.exercises.map(e=>({...e,sets:Array.from({length:e.targetSets||3},()=>({weight:'',reps:'',done:false}))}))};
+ closeModal();nav('workout');
+}
+function saveCurrentAsTemplate(){
+ if(!active?.exercises?.length)return toast('Add exercises first');
+ let name=prompt('Name this workout template',active.name||'My workout');if(!name)return;
+ let template={id:crypto.randomUUID(),name:name.trim(),exercises:active.exercises.map(e=>({id:e.id,name:e.name,muscle:e.muscle,targetSets:e.sets.length||3}))};
+ data.templates.push(template);save();render();toast('Template saved');
+}
+function lastPerformance(name){let old=data.workouts.filter(w=>w.id!==active?.id).sort((a,b)=>b.date.localeCompare(a.date));for(let w of old){let e=(w.exercises||[]).find(x=>x.name===name);if(e){let sets=(e.sets||[]).filter(s=>s.done);return sets.length?sets.map(s=>`${s.weight}×${s.reps}`).join(' · '):'No completed sets'}}return 'No previous session'}
+function showAddExercise(){modal.classList.remove('hidden');modalBody.innerHTML=`<div class="row"><b>Add exercise</b><button class="secondary" onclick="closeModal()">Close</button></div><input id="exerciseSearch" placeholder="Search exercises" style="margin:12px 0" oninput="filterExercises()"><div id="exerciseChoices"></div><button class="secondary full" style="margin-top:12px" onclick="newExercise()">＋ Create new exercise</button>`;filterExercises()}
+function closeModal(){modal.classList.add('hidden')}
+function filterExercises(){let q=(document.getElementById('exerciseSearch')?.value||'').toLowerCase();let list=data.exercises.filter(e=>e.name.toLowerCase().includes(q));exerciseChoices.innerHTML=list.map(e=>`<button class="secondary full" style="margin:4px 0;text-align:left" onclick="chooseExercise('${e.id}')">${esc(e.name)} <span class="muted">· ${esc(e.muscle)}</span></button>`).join('')||'<p class="muted">No matching exercises.</p>'}
+function chooseExercise(id){let e=data.exercises.find(x=>x.id===id);if(!e)return;active.exercises.push({...e,sets:[{weight:'',reps:'',done:false},{weight:'',reps:'',done:false},{weight:'',reps:'',done:false}]});closeModal();renderWorkout()}
+function newExercise(){modalBody.innerHTML=`<b>New exercise</b><label>Exercise name</label><input id="newExName" placeholder="e.g. Machine chest press"><label>Primary muscle group</label><select id="newExMuscle">${['Chest','Back','Shoulders','Biceps','Triceps','Quads','Hamstrings','Glutes','Calves','Core','Other'].map(x=>`<option>${x}</option>`).join('')}</select><div class="row" style="margin-top:15px"><button class="secondary" onclick="showAddExercise()">Back</button><button onclick="saveNewExercise()">Save exercise</button></div>`}
+function saveNewExercise(){let name=newExName.value.trim();if(!name)return toast('Enter an exercise name');let e={id:crypto.randomUUID(),name,muscle:newExMuscle.value};data.exercises.push(e);save();chooseExercise(e.id)}
+function editSet(i,j,k,v){active.exercises[i].sets[j][k]=v}
+function toggleSet(i,j){let s=active.exercises[i].sets[j];s.done=!s.done;save();renderWorkout()}
+function addSet(i){active.exercises[i].sets.push({weight:'',reps:'',done:false});renderWorkout()}
+function removeExercise(i){active.exercises.splice(i,1);renderWorkout()}
+function finishWorkout(){if(!active)return;active.name=workoutName.value.trim()||'Gym session';if(!active.exercises.length)return toast('Add at least one exercise');if(!allSets(active).length&&!confirm('No sets are marked complete. Save this workout anyway?'))return;data.workouts.push(active);save();active=null;nav('history');toast('Workout saved')}
+function quickActivity(type){modal.classList.remove('hidden');modalBody.innerHTML=`<div class="row"><b>Log ${type.toLowerCase()}</b><button class="secondary" onclick="closeModal()">Close</button></div><label>Date</label><input id="actDate" type="date" value="${dateISO()}"><div class="formgrid"><div><label>Duration (minutes)</label><input id="actDuration" type="number" placeholder="e.g. 45"></div><div><label>${type==='Run'?'Distance (km)':'Notes'}</label><input id="actDistance" type="${type==='Run'?'number':'text'}" step=".01" placeholder="${type==='Run'?'e.g. 5.2':'Optional'}"></div></div><label>Notes</label><input id="actNotes" placeholder="Optional"><button class="full" style="margin-top:14px" onclick="saveActivity('${type}')">Save activity</button>`}
+function saveActivity(type){data.activities.push({id:crypto.randomUUID(),type,date:actDate.value||dateISO(),duration:+actDuration.value||0,distance:type==='Run'?(+actDistance.value||0):0,notes:actNotes.value});save();closeModal();render();toast('Activity saved')}
+function renderHistory(){let items=[...data.workouts.map(w=>({...w,type:'Gym'})),...data.activities].sort((a,b)=>b.date.localeCompare(a.date));historyList.innerHTML=items.length?items.map((x,i)=>`${itemHTML(x)}${x.type==='Gym'?`<button class="secondary small" onclick="deleteWorkout('${x.id}')">Delete workout</button>`:''}`).join(''):'<div class="empty">Your training history will show up here.</div>'}
+function deleteWorkout(id){if(confirm('Delete this workout?')){data.workouts=data.workouts.filter(w=>w.id!==id);save();render()}}
+function renderProgress(){
+ let ws=weekWorkouts(),sets=ws.flatMap(allSets),vol=sets.reduce((s,x)=>s+(+x.weight||0)*(+x.reps||0),0);totalVolume.textContent=fmt(vol);totalWorkSets.textContent=sets.length;
+ let muscles={};ws.forEach(w=>(w.exercises||[]).forEach(e=>(e.sets||[]).filter(s=>s.done).forEach(()=>muscles[e.muscle]=(muscles[e.muscle]||0)+1)));
+ let max=Math.max(1,...Object.values(muscles));muscleBreakdown.innerHTML=Object.keys(muscles).length?Object.entries(muscles).sort((a,b)=>b[1]-a[1]).map(([m,n])=>`<div style="margin:12px 0"><div class="row"><span>${esc(m)}</span><b>${n} sets</b></div><div class="bar"><i style="width:${n/max*100}%"></i></div></div>`).join(''):'<div class="empty">Complete gym sets to see your weekly breakdown.</div>';
+ let names=[...new Set(data.workouts.flatMap(w=>(w.exercises||[]).map(e=>e.name)))];exerciseProgress.innerHTML=names.length?names.map(name=>{let hist=data.workouts.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(w=>({w,e:(w.exercises||[]).find(e=>e.name===name)})).filter(x=>x.e);let top=Math.max(...hist.flatMap(x=>(x.e.sets||[]).filter(s=>s.done).map(s=>+s.weight||0)),0);let last=hist[hist.length-1];return `<div class="historyitem"><div class="row"><b>${esc(name)}</b><span class="pill">${top} kg best logged</span></div><div class="small muted">Last session ${last.w.date} · ${(last.e.sets||[]).filter(s=>s.done).map(s=>`${s.weight}×${s.reps}`).join(' · ')||'No completed sets'}</div></div>`}).join(''):'<div class="empty">Your exercise trends will appear after your first workouts.</div>';
+}
+
+function manageTemplates(){
+ modal.classList.remove('hidden');
+ modalBody.innerHTML=`<div class="row"><b>Workout templates</b><button class="secondary" onclick="closeModal()">Close</button></div>
+ ${data.templates.length?data.templates.map(t=>`<div class="historyitem"><div class="row"><div><b>${esc(t.name)}</b><div class="small muted">${t.exercises.map(e=>esc(e.name)).join(' · ')}</div></div><button class="danger small" onclick="deleteTemplate('${t.id}')">×</button></div></div>`).join(''):'<div class="empty">No saved templates yet.</div>'}
+ <p class="notice">To create one, start a workout, add your exercises and tap Save template.</p>`;
+}
+function deleteTemplate(id){data.templates=data.templates.filter(t=>t.id!==id);save();manageTemplates()}
+function manageExercises(){modal.classList.remove('hidden');modalBody.innerHTML=`<div class="row"><b>Exercise library</b><button class="secondary" onclick="closeModal()">Close</button></div><div id="manageList" style="margin-top:10px">${data.exercises.map(e=>`<div class="historyitem row"><span>${esc(e.name)} <span class="muted small">· ${esc(e.muscle)}</span></span><button class="danger small" onclick="deleteExercise('${e.id}')">×</button></div>`).join('')}</div><button class="full" style="margin-top:12px" onclick="newExercise()">＋ Add exercise</button>`}
+function deleteExercise(id){data.exercises=data.exercises.filter(e=>e.id!==id);save();manageExercises()}
+function exportData(){let blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='training-log-backup-'+dateISO()+'.json';a.click();URL.revokeObjectURL(a.href)}
+function importData(ev){let f=ev.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!x.exercises||!x.workouts)throw Error();data=x;save();render();toast('Backup imported')}catch(e){alert('That file does not look like a Training Log backup.')}};r.readAsText(f)}
+render();
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+</script>
+</body></html>
