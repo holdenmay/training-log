@@ -20,6 +20,14 @@ button,.button{border:0;border-radius:11px;padding:12px 14px;background:var(--ac
 .bar{height:8px;background:var(--panel2);border-radius:20px;overflow:hidden;margin-top:7px}.bar>i{display:block;height:100%;background:var(--accent);border-radius:20px}
 .hidden{display:none!important}.notice{font-size:12px;color:var(--muted);line-height:1.5}.toast{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:var(--accent);color:#111;padding:10px 16px;border-radius:20px;z-index:10;font-weight:700}
 @media(min-width:600px){main{padding-top:22px}.grid{grid-template-columns:repeat(4,1fr)}}
+
+.detail-block{background:var(--panel2);border-radius:12px;padding:12px;margin:10px 0}
+.route{width:100%;height:230px;background:#15191d;border:1px solid var(--line);border-radius:12px}
+.route polyline{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.timer{font-size:25px;font-weight:800;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.inline-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.template-ex{padding:12px 0;border-bottom:1px solid var(--line)}
+.taprow{cursor:pointer}
 </style>
 </head>
 <body>
@@ -31,6 +39,7 @@ button,.button{border:0;border-radius:11px;padding:12px 14px;background:var(--ac
   <div class="stat"><div class="muted small">TOTAL SETS</div><div class="big" id="weekSets">0</div><div class="small muted">this week</div></div>
   <div class="stat"><div class="muted small">RUNNING</div><div class="big" id="weekKm">0 km</div><div class="small muted">this week</div></div>
   <div class="stat"><div class="muted small">ACTIVITIES</div><div class="big" id="weekActivities">0</div><div class="small muted">this week</div></div>
+  <div class="stat"><div class="muted small">ACTIVE TIME</div><div class="big" id="weekActiveTime">0h</div><div class="small muted">this week</div></div>
  </div>
  <div class="card">
   <div class="row"><div><div class="muted small">YOUR NEXT SESSION</div><div style="font-size:19px;font-weight:750;margin-top:4px">Start a workout</div></div><span style="font-size:25px">↗</span></div>
@@ -47,7 +56,7 @@ button,.button{border:0;border-radius:11px;padding:12px 14px;background:var(--ac
 
 <section id="workoutView" class="hidden">
  <div class="card">
-  <div class="row"><div><div class="muted small">ACTIVE SESSION</div><div id="workoutDate" style="font-weight:700;margin-top:3px"></div></div><div class="row"><button class="secondary" onclick="saveCurrentAsTemplate()">Save template</button><button class="secondary" onclick="finishWorkout()">Finish</button></div></div>
+  <div class="row"><div><div class="muted small">ACTIVE SESSION</div><div id="workoutDate" style="font-weight:700;margin-top:3px"></div><div class="timer" id="gymTimer">00:00</div><div class="small muted">Elapsed workout time</div></div><div class="row"><button class="secondary" onclick="saveCurrentAsTemplate()">Save template</button><button class="secondary" onclick="finishWorkout()">Finish</button></div></div>
   <label>Workout name</label><input id="workoutName" value="Gym session" />
  </div>
  <div class="row"><div class="section" style="margin:10px 0">Exercises</div><button class="secondary" onclick="showAddExercise()">＋ Add exercise</button></div>
@@ -74,6 +83,7 @@ button,.button{border:0;border-radius:11px;padding:12px 14px;background:var(--ac
 
 <section id="settingsView" class="hidden">
  <div class="section" style="margin-top:4px">Settings & data</div>
+ <div class="card"><div style="font-weight:700">Workout templates</div><p class="notice">Create, edit, reorder and delete templates with target sets and rep ranges.</p><button class="secondary full" onclick="manageTemplates()">Manage templates</button></div>
  <div class="card">
   <div style="font-weight:700">Exercise library</div><p class="notice">Add exercises and assign a primary muscle group so weekly set counts are useful.</p>
   <button class="secondary full" onclick="manageExercises()">Manage exercises</button>
@@ -84,8 +94,9 @@ button,.button{border:0;border-radius:11px;padding:12px 14px;background:var(--ac
   <label class="button secondary full" style="display:block;text-align:center;margin-top:10px">Import backup<input type="file" accept="application/json" id="importFile" hidden onchange="importData(event)"></label>
  </div>
  <div class="card">
-  <div style="font-weight:700">Garmin connection</div><p class="notice">Automatic Garmin syncing is planned for the next phase. The secure connection needs a small backend and your Garmin Personal API key. Do not paste your Garmin password or API key into this prototype.</p>
-  <span class="pill">Not connected</span>
+  <div style="font-weight:700">Garmin activities</div>
+  <p class="notice">This GitHub Pages version cannot securely sign in to Garmin Connect or sync automatically. For now, export a run as GPX from Garmin Connect and attach it to the matching run in its activity detail page. The route is stored locally on this iPhone.</p>
+  <span class="pill">Manual GPX import available · Automatic sync not connected</span>
  </div>
  <div class="card"><div style="font-weight:700">Privacy</div><p class="notice">This first version stores your training log locally in this browser on this iPhone. It does not send your workout data to a server.</p></div>
  <button class="danger full" onclick="if(confirm('Delete all local training data? Export a backup first.')){localStorage.removeItem(KEY);location.reload()}">Delete all data</button>
@@ -205,6 +216,204 @@ function manageExercises(){modal.classList.remove('hidden');modalBody.innerHTML=
 function deleteExercise(id){data.exercises=data.exercises.filter(e=>e.id!==id);save();manageExercises()}
 function exportData(){let blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='training-log-backup-'+dateISO()+'.json';a.click();URL.revokeObjectURL(a.href)}
 function importData(ev){let f=ev.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!x.exercises||!x.workouts)throw Error();data=x;save();render();toast('Backup imported')}catch(e){alert('That file does not look like a Training Log backup.')}};r.readAsText(f)}
+
+// v0.3 enhancements. Existing training-log-v1 data is migrated in place.
+function migrateData(){
+ data.exercises=data.exercises||starter;data.workouts=data.workouts||[];data.activities=data.activities||[];data.templates=data.templates||[];
+ data.templates.forEach(t=>(t.exercises||[]).forEach(e=>{e.targetSets=+e.targetSets||3;e.repMin=+e.repMin||8;e.repMax=+e.repMax||10;}));
+ data.workouts.forEach(w=>{w.duration=+w.duration||0;(w.exercises||[]).forEach(e=>(e.sets||[]).forEach(s=>{if(s.done===undefined)s.done=false;}));});
+ data.activities.forEach(a=>{a.duration=+a.duration||0;});
+ save();
+}
+migrateData();
+let gymTick=null, activityStart=null;
+
+function elapsedText(ms){
+ let sec=Math.max(0,Math.floor(ms/1000)),h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+ return h?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function ensureWorkoutStart(){if(active&&!active.startedAt){active.startedAt=Date.now();save();}startGymTicker();}
+function startGymTicker(){
+ if(gymTick)clearInterval(gymTick);
+ gymTick=setInterval(()=>{if(active&&document.getElementById('gymTimer'))document.getElementById('gymTimer').textContent=elapsedText(Date.now()-(active.startedAt||Date.now()));},1000);
+}
+function activeMinutesThisWeek(){
+ const gym=weekWorkouts().reduce((s,w)=>s+(+w.duration||0),0);
+ const other=data.activities.filter(a=>a.date>=weekStart()).reduce((s,a)=>s+(+a.duration||0),0);
+ return gym+other;
+}
+const oldRenderHome=renderHome;
+renderHome=function(){
+ oldRenderHome();
+ const el=document.getElementById('weekActiveTime');if(el){let m=activeMinutesThisWeek();el.textContent=m>=60?`${Math.floor(m/60)}h ${m%60}m`:`${m}m`;}
+};
+const oldStartWorkout=startWorkout;
+startWorkout=function(){oldStartWorkout();active.startedAt=Date.now();save();startGymTicker();renderWorkout();};
+const oldStartTemplate=startTemplate;
+startTemplate=function(id){
+ const t=data.templates.find(x=>x.id===id);if(!t)return;
+ active={id:crypto.randomUUID(),date:dateISO(),name:t.name,startedAt:Date.now(),exercises:t.exercises.map(e=>{
+  const lib=data.exercises.find(x=>x.id===e.id)||e;
+  return {...lib,targetSets:+e.targetSets||3,repMin:+e.repMin||8,repMax:+e.repMax||10,sets:Array.from({length:+e.targetSets||3},()=>({weight:'',reps:'',done:false}))};
+ })};
+ closeModal();nav('workout');startGymTicker();
+};
+const oldRenderWorkout=renderWorkout;
+renderWorkout=function(){
+ if(!active)return;ensureWorkoutStart();
+ oldRenderWorkout();
+ const timer=document.getElementById('gymTimer');if(timer)timer.textContent=elapsedText(Date.now()-(active.startedAt||Date.now()));
+ // Display target rep range and the last recorded value for each corresponding set.
+ document.querySelectorAll('#exerciseList .exercise').forEach((node,i)=>{
+  const e=active.exercises[i];if(!e)return;
+  const head=node.querySelector('.row');
+  if(head&&!node.querySelector('.target-range')){const p=document.createElement('div');p.className='small muted target-range';p.textContent=`Target: ${e.targetSets||e.sets.length||3} sets · ${e.repMin||8}–${e.repMax||10} reps`;head.insertAdjacentElement('afterend',p);}
+ });
+};
+const oldFinishWorkout=finishWorkout;
+finishWorkout=function(){
+ if(!active)return;
+ active.name=document.getElementById('workoutName').value.trim()||'Gym session';
+ active.duration=Math.max(0,Math.round((Date.now()-(active.startedAt||Date.now()))/60000));
+ if(!active.exercises.length)return toast('Add at least one exercise');
+ if(!allSets(active).length&&!confirm('No sets are marked complete. Save this workout anyway?'))return;
+ data.workouts.push(active);save();active=null;if(gymTick)clearInterval(gymTick);gymTick=null;nav('history');toast('Workout saved');
+};
+
+// Template editor: target sets, rep ranges, exercise ordering and reusable templates.
+function manageTemplates(){
+ modal.classList.remove('hidden');
+ modalBody.innerHTML=`<div class="row"><b>Workout templates</b><button class="secondary" onclick="closeModal()">Close</button></div>
+ <button class="full" style="margin:12px 0" onclick="editTemplate(null)">＋ Create template</button>
+ ${data.templates.map(t=>`<div class="historyitem"><div class="row"><div><b>${esc(t.name)}</b><div class="small muted">${(t.exercises||[]).length} exercises</div></div><div class="row"><button class="secondary small" onclick="editTemplate('${t.id}')">Edit</button><button class="danger small" onclick="deleteTemplate('${t.id}')">×</button></div></div></div>`).join('')||'<div class="empty">No templates yet.</div>'}`;
+}
+function editTemplate(id){
+ const t=id?data.templates.find(x=>x.id===id):{id:null,name:'',exercises:[]};if(!t)return;
+ const draft=JSON.parse(JSON.stringify(t));
+ modalBody.innerHTML=`<div class="row"><b>${id?'Edit':'Create'} template</b><button class="secondary" onclick="manageTemplates()">Back</button></div>
+ <label>Template name</label><input id="tplName" value="${esc(draft.name)}" placeholder="e.g. Upper body A">
+ <div id="tplExercises"></div>
+ <button class="secondary full" style="margin-top:10px" onclick="addTemplateExercise()">＋ Add exercise</button>
+ <button class="full" style="margin-top:10px" onclick="saveTemplateDraft('${id||''}')">Save template</button>
+ <p class="notice">Use the arrows to change exercise order. Rep ranges are targets, not restrictions.</p>`;
+ window.templateDraft=draft;renderTemplateDraft();
+}
+function renderTemplateDraft(){
+ const host=document.getElementById('tplExercises');if(!host||!window.templateDraft)return;
+ host.innerHTML=window.templateDraft.exercises.map((e,i)=>`<div class="template-ex">
+ <div class="row"><b>${esc(e.name)}</b><div class="row"><button class="secondary small" onclick="moveTemplateExercise(${i},-1)">↑</button><button class="secondary small" onclick="moveTemplateExercise(${i},1)">↓</button><button class="danger small" onclick="removeTemplateExercise(${i})">×</button></div></div>
+ <div class="inline-fields"><div><label>Sets</label><input type="number" min="1" max="10" value="${+e.targetSets||3}" onchange="setTemplateField(${i},'targetSets',this.value)"></div><div><label>Rep range (min–max)</label><div class="row"><input type="number" min="1" value="${+e.repMin||8}" onchange="setTemplateField(${i},'repMin',this.value)"><input type="number" min="1" value="${+e.repMax||10}" onchange="setTemplateField(${i},'repMax',this.value)"></div></div></div></div>`).join('')||'<div class="empty">Add exercises to this template.</div>';
+}
+function setTemplateField(i,k,v){window.templateDraft.exercises[i][k]=+v||1;}
+function moveTemplateExercise(i,dir){let a=window.templateDraft.exercises,j=i+dir;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];renderTemplateDraft();}
+function removeTemplateExercise(i){window.templateDraft.exercises.splice(i,1);renderTemplateDraft();}
+function addTemplateExercise(){
+ const nameField=document.getElementById('tplName');if(nameField)window.templateDraft.name=nameField.value;
+ const choices=data.exercises.map(e=>`<button class="secondary full" style="margin:4px 0;text-align:left" onclick="pushTemplateExercise('${e.id}')">${esc(e.name)} · ${esc(e.muscle)}</button>`).join('');
+ modalBody.innerHTML=`<div class="row"><b>Add exercise</b><button class="secondary" onclick="renderTemplateEditorAgain()">Back</button></div>${choices}`;
+}
+function pushTemplateExercise(id){
+ const e=data.exercises.find(x=>x.id===id);if(!e)return;
+ window.templateDraft.exercises.push({...e,targetSets:3,repMin:8,repMax:10});renderTemplateEditorAgain();
+}
+function renderTemplateEditorAgain(){
+ const d=window.templateDraft;
+ modalBody.innerHTML=`<div class="row"><b>Edit template</b><button class="secondary" onclick="manageTemplates()">Cancel</button></div><label>Template name</label><input id="tplName" value="${esc(d.name)}"><div id="tplExercises"></div><button class="secondary full" style="margin-top:10px" onclick="addTemplateExercise()">＋ Add exercise</button><button class="full" style="margin-top:10px" onclick="saveTemplateDraft('${d.id||''}')">Save template</button>`;
+ renderTemplateDraft();
+}
+function saveTemplateDraft(id){
+ const name=document.getElementById('tplName')?.value.trim();if(!name)return toast('Name your template');
+ const d=window.templateDraft;if(!d.exercises.length)return toast('Add at least one exercise');
+ d.name=name;d.exercises=d.exercises.map(e=>({id:e.id,name:e.name,muscle:e.muscle,targetSets:+e.targetSets||3,repMin:+e.repMin||8,repMax:+e.repMax||10}));
+ if(id){const ix=data.templates.findIndex(x=>x.id===id);if(ix>=0)data.templates[ix]=d;}
+ else{d.id=crypto.randomUUID();data.templates.push(d);}
+ save();manageTemplates();render();toast('Template saved');
+}
+function deleteTemplate(id){if(confirm('Delete this template?')){data.templates=data.templates.filter(t=>t.id!==id);save();manageTemplates();render();}}
+
+// Set-level previous performance and all-time heaviest-set record.
+function previousSet(name,index){
+ const e=previousExercise(name);const s=e?.sets?.filter(x=>x.done)[index];
+ return s?`${s.weight||0} kg × ${s.reps||0}`:'No prior set';
+}
+function bestSet(name){
+ const all=data.workouts.flatMap(w=>(w.exercises||[]).filter(e=>e.name===name).flatMap(e=>(e.sets||[]).filter(s=>s.done)));
+ if(!all.length)return '—';
+ const best=all.reduce((a,b)=>(+b.weight||0)>(+a.weight||0)?b:a);
+ return `${best.weight||0} kg × ${best.reps||0}`;
+}
+
+// Activity form includes manual duration or an in-form stopwatch; route GPX can be attached later.
+function quickActivity(type){
+ modal.classList.remove('hidden');activityStart=null;
+ modalBody.innerHTML=`<div class="row"><b>Log ${type.toLowerCase()}</b><button class="secondary" onclick="closeModal()">Close</button></div>
+ <label>Date</label><input id="actDate" type="date" value="${dateISO()}">
+ <div class="inline-fields"><div><label>Duration (minutes)</label><input id="actDuration" type="number" min="0" placeholder="e.g. 45"></div><div><label>${type==='Run'?'Distance (km)':'Notes'}</label><input id="actDistance" type="${type==='Run'?'number':'text'}" step=".01" placeholder="${type==='Run'?'e.g. 5.2':'Optional'}"></div></div>
+ <div class="detail-block"><div class="row"><span class="muted small">ACTIVITY TIMER</span><span class="timer" id="actTimer">00:00</span></div><div class="row"><button class="secondary" onclick="startActivityTimer()">Start timer</button><button class="secondary" onclick="stopActivityTimer()">Stop timer</button></div></div>
+ <label>Notes</label><input id="actNotes" placeholder="Optional">
+ <button class="full" style="margin-top:14px" onclick="saveActivity('${type}')">Save activity</button>`;
+}
+function startActivityTimer(){activityStart=Date.now();if(window.actTick)clearInterval(window.actTick);window.actTick=setInterval(()=>{let e=document.getElementById('actTimer');if(e)e.textContent=elapsedText(Date.now()-activityStart);},1000);}
+function stopActivityTimer(){if(!activityStart)return;let mins=Math.max(1,Math.round((Date.now()-activityStart)/60000));document.getElementById('actDuration').value=mins;clearInterval(window.actTick);activityStart=null;}
+const oldSaveActivity=saveActivity;
+saveActivity=function(type){
+ if(activityStart){document.getElementById('actDuration').value=Math.max(1,Math.round((Date.now()-activityStart)/60000));clearInterval(window.actTick);activityStart=null;}
+ data.activities.push({id:crypto.randomUUID(),type,date:document.getElementById('actDate').value||dateISO(),duration:+document.getElementById('actDuration').value||0,distance:type==='Run'?(+document.getElementById('actDistance').value||0):0,notes:document.getElementById('actNotes').value,route:null});
+ save();closeModal();render();toast('Activity saved');
+};
+
+// Clickable history rows open activity detail pages.
+function itemHTML(x){
+ const id=x.id;
+ const meta=x.type==='Gym'?`${(x.exercises||[]).length} exercises · ${allSets(x).length} sets · ${x.duration||0} min`:`${esc(x.type)} · ${x.distance?x.distance+' km · ':''}${x.duration||0} min`;
+ return `<div class="historyitem taprow" onclick="openDetail('${id}','${x.type||'Gym'}')"><div class="row"><b>${esc(x.name||x.type)}</b><span class="pill">${esc(x.date)}</span></div><div class="muted small" style="margin-top:5px">${meta}</div><div class="small" style="color:var(--accent);margin-top:6px">View activity →</div></div>`;
+}
+function renderHistory(){
+ const items=[...data.workouts.map(w=>({...w,type:'Gym'})),...data.activities].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+ historyList.innerHTML=items.length?items.map(x=>itemHTML(x)).join(''):'<div class="empty">Your training history will show up here.</div>';
+}
+function openDetail(id,type){
+ const x=type==='Gym'?data.workouts.find(w=>w.id===id):data.activities.find(a=>a.id===id);if(!x)return;
+ modal.classList.remove('hidden');
+ if(type==='Gym'){
+  const sets=(x.exercises||[]).flatMap(e=>(e.sets||[]).filter(s=>s.done));
+  const volume=sets.reduce((s,z)=>s+(+z.weight||0)*(+z.reps||0),0);
+  modalBody.innerHTML=`<div class="row"><b>${esc(x.name||'Gym session')}</b><button class="secondary" onclick="closeModal()">Close</button></div>
+  <div class="grid"><div class="stat"><div class="small muted">DURATION</div><div class="big">${x.duration||0}m</div></div><div class="stat"><div class="small muted">WORKING SETS</div><div class="big">${sets.length}</div></div><div class="stat"><div class="small muted">VOLUME</div><div class="big">${fmt(volume)} kg</div></div><div class="stat"><div class="small muted">EXERCISES</div><div class="big">${(x.exercises||[]).length}</div></div></div>
+  ${(x.exercises||[]).map(e=>`<div class="detail-block"><b>${esc(e.name)}</b><div class="small muted">${esc(e.muscle||'')}</div><div style="margin-top:7px">${(e.sets||[]).filter(s=>s.done).map((s,i)=>`<div class="row small"><span>Set ${i+1}</span><b>${esc(s.weight||0)} kg × ${esc(s.reps||0)}</b></div>`).join('')||'<span class="muted small">No completed sets</span>'}</div></div>`).join('')}
+  <button class="danger full" onclick="deleteWorkout('${x.id}');closeModal()">Delete workout</button>`;
+ }else{
+  const pace=x.distance&&x.duration?(x.duration/x.distance).toFixed(2):'—';
+  modalBody.innerHTML=`<div class="row"><b>${esc(x.type)} · ${esc(x.date)}</b><button class="secondary" onclick="closeModal()">Close</button></div>
+  <div class="grid"><div class="stat"><div class="small muted">DURATION</div><div class="big">${x.duration||0}m</div></div><div class="stat"><div class="small muted">DISTANCE</div><div class="big">${x.distance?x.distance+' km':'—'}</div></div><div class="stat"><div class="small muted">AVG PACE</div><div class="big">${x.type==='Run'&&pace!=='—'?pace+'/km':'—'}</div></div><div class="stat"><div class="small muted">ACTIVITY</div><div class="big">${esc(x.type)}</div></div></div>
+  ${x.type==='Run'?(x.route?routeSvg(x.route):'<div class="detail-block"><b>GPS route</b><p class="notice">No route attached yet. Use Import GPX below to add the route exported from Garmin Connect.</p></div>'):''}
+  ${x.notes?`<p class="muted small">${esc(x.notes)}</p>`:''}
+  ${x.type==='Run'?`<label>Import Garmin GPX route</label><input id="gpxFile" type="file" accept=".gpx,application/gpx+xml" onchange="importGPX('${x.id}',event)"><p class="notice">In Garmin Connect, open the activity and export/download its GPX file. This stores the route in this browser; it does not sync automatically.</p>`:''}
+  <button class="danger full" style="margin-top:12px" onclick="deleteActivity('${x.id}')">Delete activity</button>`;
+ }
+}
+function routeSvg(points){
+ if(!points||points.length<2)return '<div class="detail-block">Route data is incomplete.</div>';
+ const lats=points.map(p=>p[0]),lons=points.map(p=>p[1]),minA=Math.min(...lats),maxA=Math.max(...lats),minB=Math.min(...lons),maxB=Math.max(...lons);
+ const coords=points.map(p=>`${12+(p[1]-minB)/(maxB-minB||1)*276},${218-(p[0]-minA)/(maxA-minA||1)*196}`).join(' ');
+ return `<div class="detail-block"><b>GPS route</b><svg class="route" viewBox="0 0 300 230" role="img" aria-label="Imported GPS route"><polyline points="${coords}"/></svg><div class="notice">Route trace from your GPX file. This schematic view is not a street map.</div></div>`;
+}
+function importGPX(id,event){
+ const file=event.target.files?.[0];if(!file)return;
+ const reader=new FileReader();reader.onload=()=>{
+  try{
+   const xml=new DOMParser().parseFromString(reader.result,'text/xml');
+   const pts=[...xml.querySelectorAll('trkpt,rtept')].map(p=>[+p.getAttribute('lat'),+p.getAttribute('lon')]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
+   if(pts.length<2)throw Error('No GPS trackpoints found');
+   const activity=data.activities.find(a=>a.id===id);if(!activity)return;
+   // Downsample large tracks for compact local storage while retaining route shape.
+   const stride=Math.max(1,Math.ceil(pts.length/500));activity.route=pts.filter((p,i)=>i%stride===0||i===pts.length-1);
+   save();openDetail(id,activity.type);toast('GPS route imported');
+  }catch(e){alert('Could not read that GPX file. Make sure it contains a GPS track.');}
+ };reader.readAsText(file);
+}
+function deleteActivity(id){if(confirm('Delete this activity?')){data.activities=data.activities.filter(a=>a.id!==id);save();closeModal();render();}}
+
 render();
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 </script>
